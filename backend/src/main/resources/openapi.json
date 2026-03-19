@@ -1,0 +1,179 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TeamFinder API",
+    "version": "1.0.0",
+    "description": "Полная документация API для TeamFinder"
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Регистрация и вход" },
+    { "name": "Projects", "description": "Управление проектами" },
+    { "name": "Users", "description": "Профили пользователей" },
+    { "name": "Chats", "description": "Сообщения (не забудь подключить в Routing.kt)" },
+    { "name": "Uploads", "description": "Загрузка файлов (не забудь подключить в Routing.kt)" }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Регистрация",
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "username": { "type": "string" }, "email": { "type": "string" }, "password": { "type": "string" } } } } }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Вход",
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "email": { "type": "string" }, "password": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Обновление токена",
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "refreshToken": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Лента проектов",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Создать проект (Нужен токен)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "title": { "type": "string" }, "description": { "type": "string" }, "briefDescription": { "type": "string" }, "stage": { "type": "string" }, "tags": { "type": "array", "items": { "type": "string" } } } } } }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Детали проекта",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "put": {
+        "tags": ["Projects"],
+        "summary": "Обновить проект",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Удалить проект",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/projects/{id}/like": {
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Лайкнуть / Убрать лайк",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/projects/{id}/comments": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Список комментариев",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Добавить комментарий",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "content": { "type": "string" } } } } }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Список пользователей",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Профиль пользователя",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "put": {
+        "tags": ["Users"],
+        "summary": "Обновить свой профиль",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/users/search": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Поиск пользователей",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "query", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/chats": {
+      "get": {
+        "tags": ["Chats"],
+        "summary": "Список чатов",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/uploads": {
+      "post": {
+        "tags": ["Uploads"],
+        "summary": "Загрузка файлов",
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  }
+}

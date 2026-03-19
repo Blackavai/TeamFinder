@@ -65,6 +65,9 @@ dependencies {
     // Testing
     testImplementation("io.ktor:ktor-server-tests:2.3.12")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.24")
+
+    implementation("io.ktor:ktor-server-swagger-jvm:2.3.12")
+    implementation("io.ktor:ktor-server-openapi:2.3.12")
 }
 
 tasks.withType<Test> {

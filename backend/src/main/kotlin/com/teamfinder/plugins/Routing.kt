@@ -6,20 +6,27 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.http.content.* // 1. КРИТИЧНО: Импорт для статических файлов
 
 fun Application.configureRouting(jwtConfig: JwtConfig) {
     routing {
+        // Проверка работоспособности сервера
         get("/health") {
             call.respond(mapOf("status" to "ok"))
         }
+
+        // 2. РАЗДАЧА ФАЙЛОВ: Делаем папку "uploads" доступной по ссылке /static/
+        // Теперь если файл лежит в uploads/abc.jpg, он будет доступен как http://localhost:8080/static/abc.jpg
+        static("/static") {
+            files("uploads")
+        }
         
-        // Сначала регистрируем auth (они публичные)
+        // 3. ПУБЛИЧНЫЕ И СМЕШАННЫЕ МАРШРУТЫ
         authRouting(jwtConfig)
-        
-        // Затем проекты (смешанные - публичные и защищенные)
         projectRouting(jwtConfig)
-        
-        // Пользователи (пока закомментируем для теста)
-        // userRouting()
+        userRouting()
+
+        // 4. МАРШРУТЫ ЗАГРУЗКИ: Активируем тот код, который ты заменил в UploadRoutes.kt
+        uploadRouting()
     }
 }

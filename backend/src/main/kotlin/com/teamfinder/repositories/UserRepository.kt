@@ -66,16 +66,7 @@ class UserRepository {
         Users.deleteWhere { Users.id eq id } > 0
     }
 
-    suspend fun search(query: String, limit: Int = 20, offset: Int = 0): List<User> = dbQuery {
-        Users.select {
-            (Users.username like "%$query%") or
-                    (Users.fullName like "%$query%") or
-                    (Users.email like "%$query%")
-        }
-            .limit(limit, offset.toLong())
-            .map { row: ResultRow -> toUser(row) }
-    }
-
+    
     suspend fun getProfile(userId: Int): UserProfile? = dbQuery {
         Profiles.select { Profiles.userId eq userId }
             .map { row: ResultRow -> toProfile(row) }
@@ -167,4 +158,47 @@ class UserRepository {
             emptyList()
         }
     }
+// ========== НОВЫЕ МЕТОДЫ ДЛЯ ПАГИНАЦИИ ==========
+
+// Подсчет общего количества пользователей
+suspend fun count(): Int = dbQuery {
+    Users.selectAll().count().toInt()
+}
+
+// Подсчет с учетом поискового запроса
+suspend fun count(query: String): Int = dbQuery {
+    if (query.isBlank()) {
+        Users.selectAll().count().toInt()
+    } else {
+        Users.select {
+            (Users.username like "%$query%") or
+            (Users.fullName like "%$query%") or
+            (Users.email like "%$query%")
+        }.count().toInt()
+    }
+}
+
+// Получить всех пользователей с пагинацией
+suspend fun getAll(page: Int, limit: Int): List<User> = dbQuery {
+    val offset = (page - 1) * limit
+    
+    Users.selectAll()
+        .limit(limit, offset.toLong())
+        .orderBy(Users.createdAt to SortOrder.DESC)
+        .map { toUser(it) }
+}
+
+// Поиск с пагинацией (обновленная версия)
+suspend fun search(query: String, page: Int, limit: Int): List<User> = dbQuery {
+    val offset = (page - 1) * limit
+    
+    Users.select {
+        (Users.username like "%$query%") or
+        (Users.fullName like "%$query%") or
+        (Users.email like "%$query%")
+    }
+    .limit(limit, offset.toLong())
+    .orderBy(Users.username to SortOrder.ASC)
+    .map { toUser(it) }
+}
 }

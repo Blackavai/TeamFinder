@@ -9,7 +9,7 @@ import java.time.LocalDateTime
 @Serializable
 data class Project(
     val id: Int? = null,
-    val authorId: Int,
+    val authorId: Int = 0,
     val title: String,
     val description: String,
     val briefDescription: String,

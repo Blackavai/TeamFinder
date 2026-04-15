@@ -57,6 +57,9 @@ dependencies {
     
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.6")
+
+    // YAML parsing (для OpenAPI spec)
+    implementation("org.yaml:snakeyaml:2.2")
     
     // Security
     implementation("org.mindrot:jbcrypt:0.4")

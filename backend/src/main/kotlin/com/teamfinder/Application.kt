@@ -38,6 +38,7 @@ fun Application.module() {
     // Плагины Ktor
     configureSerialization()
     configureSecurity(jwtConfig)
+    configureSwagger()              // Swagger UI: http://localhost:8080/swagger
     configureRouting(jwtConfig)      // Маршруты + WebSockets + Chat
     configureMonitoring()
     configureStatusPages()

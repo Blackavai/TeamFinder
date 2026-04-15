@@ -1,0 +1,1444 @@
+openapi: 3.0.3
+info:
+  title: TeamFinder API
+  description: |
+    REST API для платформы поиска команды в проекты.
+    
+    ## Авторизация
+    Большинство эндпоинтов требуют JWT-токен. Передавайте его в заголовке:
+    ```
+    Authorization: Bearer <accessToken>
+    ```
+    
+    ## WebSocket
+    Для realtime-чата подключайтесь:
+    ```
+    ws://localhost:8080/ws/chat?userId={id}
+    ```
+  version: 1.0.0
+  contact:
+    name: TeamFinder Team
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+tags:
+  - name: Auth
+    description: Регистрация и аутентификация
+  - name: Users
+    description: Пользователи и профили
+  - name: Projects
+    description: Проекты
+  - name: Responses
+    description: Отклики на проекты
+  - name: Invitations
+    description: Приглашения в проекты
+  - name: Chat
+    description: Чаты и сообщения
+  - name: Uploads
+    description: Загрузка файлов
+
+# ========== SCHEMAS ==========
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Auth ---
+    RegisterRequest:
+      type: object
+      required: [username, email, firstName, password]
+      properties:
+        username:
+          type: string
+          example: "ivan_dev"
+        email:
+          type: string
+          format: email
+          example: "ivan@example.com"
+        firstName:
+          type: string
+          example: "Иван"
+        password:
+          type: string
+          minLength: 8
+          example: "Password123"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "ivan@example.com"
+        password:
+          type: string
+          example: "Password123"
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIs..."
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    # --- User ---
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          nullable: true
+        firstName:
+          type: string
+        lastName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        goals:
+          type: string
+          nullable: true
+        skills:
+          type: array
+          items:
+            type: string
+        rating:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          nullable: true
+
+    UsersListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfile'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    PaginationInfo:
+      type: object
+      properties:
+        currentPage:
+          type: integer
+        pageSize:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        avatarUrl:
+          type: string
+        goals:
+          type: string
+        portfolioUrl:
+          type: string
+
+    # --- Project ---
+    ProjectRole:
+      type: object
+      required: [roleName, spotsTotal]
+      properties:
+        id:
+          type: integer
+          nullable: true
+        roleName:
+          type: string
+          example: "Backend-разработчик"
+        requiredSkills:
+          type: array
+          items:
+            type: string
+          example: ["Kotlin", "Ktor", "PostgreSQL"]
+        spotsTotal:
+          type: integer
+          example: 2
+        spotsFilled:
+          type: integer
+          example: 0
+
+    Project:
+      type: object
+      required: [title, authorId]
+      properties:
+        id:
+          type: integer
+          nullable: true
+        authorId:
+          type: integer
+        title:
+          type: string
+          example: "Мобильное приложение для доставки"
+        description:
+          type: string
+          nullable: true
+          example: "Полное описание проекта..."
+        status:
+          type: string
+          default: "идея"
+          example: "идея"
+        deadline:
+          type: string
+          format: date
+          nullable: true
+          example: "2025-12-31"
+        industry:
+          type: string
+          nullable: true
+          example: "E-commerce"
+        createdAt:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+          default: true
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["kotlin", "mobile", "delivery"]
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectRole'
+        authorName:
+          type: string
+          nullable: true
+
+    # --- Response ---
+    CreateResponseRequest:
+      type: object
+      required: [projectId]
+      properties:
+        projectId:
+          type: integer
+          example: 1
+        roleId:
+          type: integer
+          nullable: true
+          example: 3
+        message:
+          type: string
+          nullable: true
+          example: "Здравствуйте! Имею 3 года опыта в Kotlin."
+
+    Response:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        userId:
+          type: integer
+        roleId:
+          type: integer
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        status:
+          type: string
+          example: "рассматривается"
+        createdAt:
+          type: string
+        userName:
+          type: string
+          nullable: true
+        projectTitle:
+          type: string
+          nullable: true
+
+    UpdateResponseStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: ["рассматривается", "принят", "отклонён"]
+          example: "принят"
+
+    # --- Invitation ---
+    CreateInvitationRequest:
+      type: object
+      required: [projectId, toUserId]
+      properties:
+        projectId:
+          type: integer
+          example: 1
+        toUserId:
+          type: integer
+          example: 5
+        roleId:
+          type: integer
+          nullable: true
+        message:
+          type: string
+          nullable: true
+          example: "Привет! Ищем backend-разработчика в команду."
+
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        roleId:
+          type: integer
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        status:
+          type: string
+          example: "отправлено"
+        createdAt:
+          type: string
+        fromUserName:
+          type: string
+          nullable: true
+        toUserName:
+          type: string
+          nullable: true
+        projectTitle:
+          type: string
+          nullable: true
+
+    UpdateInvitationStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: ["принято", "отклонено"]
+          example: "принято"
+
+    # --- Chat ---
+    ChatInfoResponse:
+      type: object
+      properties:
+        chatType:
+          type: string
+          enum: [TEAM, RESPONSE]
+        chatId:
+          type: integer
+        participants:
+          type: array
+          items:
+            type: integer
+        lastMessage:
+          $ref: '#/components/schemas/ChatMessage'
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        senderId:
+          type: integer
+        chatType:
+          type: string
+          enum: [TEAM, RESPONSE]
+        chatId:
+          type: integer
+        content:
+          type: string
+        timestamp:
+          type: string
+        isRead:
+          type: boolean
+        senderName:
+          type: string
+          nullable: true
+
+    SendMessageRequest:
+      type: object
+      required: [chatType, chatId, content]
+      properties:
+        chatType:
+          type: string
+          enum: [TEAM, RESPONSE]
+          example: "TEAM"
+        chatId:
+          type: integer
+          example: 1
+        content:
+          type: string
+          example: "Привет! Как дела с проектом?"
+
+    # --- Upload ---
+    FileRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        fileName:
+          type: string
+        filePath:
+          type: string
+        uploadedAt:
+          type: string
+        uploaderName:
+          type: string
+          nullable: true
+
+    # --- Common ---
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+
+# ========== PATHS ==========
+paths:
+
+  # ============================
+  # AUTH
+  # ============================
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь успешно зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Ошибка валидации или пользователь уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход в систему
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление токена доступа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Новые токены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Недействительный refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================
+  # USERS
+  # ============================
+
+  /users:
+    get:
+      tags: [Users]
+      summary: Список всех пользователей
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Список пользователей с пагинацией
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersListResponse'
+
+  /users/search:
+    get:
+      tags: [Users]
+      summary: Поиск пользователей
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Поисковый запрос (username, firstName, lastName)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Результаты поиска
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersListResponse'
+        '400':
+          description: Пустой запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Получить профиль пользователя по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags: [Users]
+      summary: Обновить свой профиль
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Профиль обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '403':
+          description: Нет прав на редактирование
+        '404':
+          description: Пользователь не найден
+
+    delete:
+      tags: [Users]
+      summary: Удалить свой аккаунт
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Аккаунт удалён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '403':
+          description: Нет прав на удаление
+
+  # ============================
+  # PROJECTS
+  # ============================
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: Лента проектов
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Фильтр по статусу
+        - name: industry
+          in: query
+          schema:
+            type: string
+          description: Фильтр по отрасли
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Поиск по названию и описанию
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Фильтр по тегу
+      responses:
+        '200':
+          description: Список проектов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+
+    post:
+      tags: [Projects]
+      summary: Создать проект
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Project'
+      responses:
+        '201':
+          description: Проект создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: Ошибка валидации
+        '401':
+          description: Не авторизован
+
+  /projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Получить проект по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Детали проекта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '404':
+          description: Проект не найден
+
+    put:
+      tags: [Projects]
+      summary: Обновить проект (только автор)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Project'
+      responses:
+        '200':
+          description: Проект обновлён
+        '403':
+          description: Не автор проекта
+        '404':
+          description: Проект не найден
+
+    delete:
+      tags: [Projects]
+      summary: Удалить проект (мягкое удаление, только автор)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Проект удалён
+        '403':
+          description: Не автор проекта
+        '404':
+          description: Проект не найден
+
+  # ============================
+  # RESPONSES
+  # ============================
+
+  /responses:
+    post:
+      tags: [Responses]
+      summary: Создать отклик на проект
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResponseRequest'
+      responses:
+        '201':
+          description: Отклик создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '400':
+          description: Ошибка валидации
+        '401':
+          description: Не авторизован
+        '404':
+          description: Проект не найден
+        '409':
+          description: Уже откликались на этот проект
+
+  /responses/my:
+    get:
+      tags: [Responses]
+      summary: Мои отклики
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список откликов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Response'
+
+  /responses/project/{projectId}:
+    get:
+      tags: [Responses]
+      summary: Все отклики на проект
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список откликов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Response'
+
+  /responses/{id}:
+    get:
+      tags: [Responses]
+      summary: Получить отклик по ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Детали отклика
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '404':
+          description: Отклик не найден
+
+    put:
+      tags: [Responses]
+      summary: Обновить свой отклик
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                roleId:
+                  type: integer
+      responses:
+        '200':
+          description: Отклик обновлён
+        '403':
+          description: Не ваш отклик
+        '404':
+          description: Отклик не найден
+
+    delete:
+      tags: [Responses]
+      summary: Отменить свой отклик
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Отклик отменён
+        '403':
+          description: Не ваш отклик
+        '404':
+          description: Отклик не найден
+
+  /responses/{id}/status:
+    put:
+      tags: [Responses]
+      summary: Изменить статус отклика (только автор проекта)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateResponseStatusRequest'
+      responses:
+        '200':
+          description: Статус обновлён
+        '400':
+          description: Неверный статус
+        '403':
+          description: Не автор проекта
+        '404':
+          description: Отклик не найден
+
+  # ============================
+  # INVITATIONS
+  # ============================
+
+  /invitations:
+    post:
+      tags: [Invitations]
+      summary: Пригласить пользователя в проект
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: Приглашение создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '400':
+          description: Ошибка валидации
+        '401':
+          description: Не авторизован
+        '403':
+          description: Не автор проекта
+        '404':
+          description: Проект не найден
+        '409':
+          description: Приглашение уже существует
+
+  /invitations/received:
+    get:
+      tags: [Invitations]
+      summary: Полученные приглашения
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список приглашений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+
+  /invitations/received/pending:
+    get:
+      tags: [Invitations]
+      summary: Ожидающие приглашения
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список ожидающих приглашений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+
+  /invitations/sent:
+    get:
+      tags: [Invitations]
+      summary: Отправленные приглашения
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список отправленных приглашений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+
+  /invitations/project/{projectId}:
+    get:
+      tags: [Invitations]
+      summary: Все приглашения на проект (только автор)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список приглашений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+        '403':
+          description: Не автор проекта
+
+  /invitations/{id}:
+    get:
+      tags: [Invitations]
+      summary: Получить приглашение по ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Детали приглашения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '404':
+          description: Приглашение не найдено
+
+    put:
+      tags: [Invitations]
+      summary: Обновить приглашение (только отправитель)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                roleId:
+                  type: integer
+      responses:
+        '200':
+          description: Приглашение обновлено
+        '403':
+          description: Не отправитель
+        '404':
+          description: Приглашение не найдено
+
+    delete:
+      tags: [Invitations]
+      summary: Отменить приглашение (только отправитель)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Приглашение отменено
+        '403':
+          description: Не отправитель
+        '404':
+          description: Приглашение не найдено
+
+  /invitations/{id}/status:
+    put:
+      tags: [Invitations]
+      summary: Ответить на приглашение (принять/отклонить)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvitationStatusRequest'
+      responses:
+        '200':
+          description: Статус обновлён
+        '400':
+          description: Неверный статус
+        '403':
+          description: Не адресат приглашения
+        '404':
+          description: Приглашение не найдено
+
+  # ============================
+  # CHAT
+  # ============================
+
+  /chats:
+    get:
+      tags: [Chat]
+      summary: Список чатов пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список чатов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatInfoResponse'
+
+  /chats/{chatType}/{chatId}:
+    get:
+      tags: [Chat]
+      summary: Информация о чате
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chatType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [TEAM, RESPONSE]
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Информация о чате
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatInfoResponse'
+        '403':
+          description: Не участник чата
+
+  /chats/{chatType}/{chatId}/messages:
+    get:
+      tags: [Chat]
+      summary: История сообщений чата
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chatType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [TEAM, RESPONSE]
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Список сообщений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+        '403':
+          description: Не участник чата
+
+    post:
+      tags: [Chat]
+      summary: Отправить сообщение (REST-альтернатива WebSocket)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chatType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [TEAM, RESPONSE]
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Сообщение отправлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+        '403':
+          description: Не участник чата
+
+  /chats/{chatType}/{chatId}/read:
+    post:
+      tags: [Chat]
+      summary: Отметить все сообщения как прочитанные
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chatType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [TEAM, RESPONSE]
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Отмечено как прочитанное
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+  # ============================
+  # UPLOADS
+  # ============================
+
+  /uploads:
+    post:
+      tags: [Uploads]
+      summary: Загрузить файл
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                entityType:
+                  type: string
+                  description: Тип сущности (project, message, profile)
+                  example: "project"
+                entityId:
+                  type: integer
+                  description: ID сущности
+                  example: 1
+            encoding:
+              entityType:
+                contentType: text/plain
+              entityId:
+                contentType: text/plain
+      responses:
+        '201':
+          description: Файл загружен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  file:
+                    $ref: '#/components/schemas/FileRecord'
+        '400':
+          description: Неподдерживаемый формат файла
+
+  /uploads/{entityType}/{entityId}:
+    get:
+      tags: [Uploads]
+      summary: Получить файлы сущности
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список файлов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileRecord'
+
+  /uploads/{id}:
+    delete:
+      tags: [Uploads]
+      summary: Удалить файл
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Файл удалён
+        '403':
+          description: Не ваш файл
+        '404':
+          description: Файл не найден
+
+  # ============================
+  # HEALTH
+  # ============================
+
+  /health:
+    get:
+      tags: [System]
+      summary: Проверка работоспособности
+      responses:
+        '200':
+          description: Сервер работает
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"

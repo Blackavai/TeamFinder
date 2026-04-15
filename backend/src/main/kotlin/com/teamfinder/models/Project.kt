@@ -1,9 +1,10 @@
 package com.teamfinder.models
 
-import org.jetbrains.exposed.sql.javatime.datetime
 import kotlinx.serialization.Serializable
 import com.teamfinder.utils.LocalDateTimeSerializer
 import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.javatime.datetime
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 @Serializable
@@ -11,97 +12,81 @@ data class Project(
     val id: Int? = null,
     val authorId: Int = 0,
     val title: String,
-    val description: String,
-    val briefDescription: String,
-    val stage: ProjectStage,
-    val status: ProjectStatus = ProjectStatus.ACTIVE,
+    val description: String? = null,
+    val status: String = "идея",
+    val deadline: LocalDate? = null,
+    val industry: String? = null,
     @Serializable(with = LocalDateTimeSerializer::class)
     val createdAt: LocalDateTime? = null,
-    @Serializable(with = LocalDateTimeSerializer::class)
-    val updatedAt: LocalDateTime? = null,
-    val viewsCount: Int = 0,
-    val likesCount: Int = 0,
+    val isActive: Boolean = true,
     val tags: List<String> = emptyList(),
-    val neededRoles: List<Role> = emptyList(),
+    val roles: List<ProjectRole> = emptyList(),
     val authorName: String? = null
 )
 
 @Serializable
-data class Role(
+data class ProjectRole(
     val id: Int? = null,
-    val projectId: Int? =null,
-    val title: String,
-    val description: String,
+    val projectId: Int? = null,
+    val roleName: String,
     val requiredSkills: List<String> = emptyList(),
-    val isFilled: Boolean = false,
-    @Serializable(with = LocalDateTimeSerializer::class)
-    val createdAt: LocalDateTime? = null
+    val spotsTotal: Int,
+    val spotsFilled: Int = 0
 )
 
-@Serializable
-enum class ProjectStage {
-    IDEA, DEVELOPMENT, TESTING, COMPLETED
-}
-
-@Serializable
-enum class ProjectStatus {
-    ACTIVE, ARCHIVED, BLOCKED
-}
-
-// Таблицы БД (не трогаем)
+// Таблица Projects
 object Projects : Table("projects") {
     val id = integer("project_id").autoIncrement()
     val authorId = integer("author_id").references(Users.id)
-    val title = varchar("title", 255)
-    val description = text("description")
-    val briefDescription = varchar("brief_description", 500)
-    val stage = enumerationByName("stage", 20, ProjectStage::class)
-    val status = enumerationByName("status", 20, ProjectStatus::class).default(ProjectStatus.ACTIVE)
+    val title = varchar("title", 200)
+    val description = text("description").nullable()
+    val status = varchar("status", 50).default("идея")
+    val deadline = date("deadline").nullable()
+    val industry = varchar("industry", 100).nullable()
     val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
-    val updatedAt = datetime("updated_at").clientDefault { LocalDateTime.now() }
-    val viewsCount = integer("views_count").default(0)
-    val likesCount = integer("likes_count").default(0)
-    
+    val isActive = bool("is_active").default(true)
+
     override val primaryKey = PrimaryKey(id)
 }
 
-object ProjectTags : Table("project_tags") {
-    val projectId = integer("project_id").references(Projects.id)
-    val tagId = integer("tag_id").references(Tags.tagId)
-    override val primaryKey = PrimaryKey(projectId, tagId)
-}
-
+// Таблица Tags
 object Tags : Table("tags") {
     val tagId = integer("tag_id").autoIncrement()
-    val name = varchar("name", 100).uniqueIndex()
+    val name = varchar("name", 50).uniqueIndex()
+    val category = varchar("category", 50).nullable()
+
     override val primaryKey = PrimaryKey(tagId)
 }
 
-object Vacancies : Table("vacancies") {
-    val vacancyId = integer("vacancy_id").autoIncrement()
+// Таблица ProjectTags
+object ProjectTags : Table("project_tags") {
     val projectId = integer("project_id").references(Projects.id)
-    val roleTitle = varchar("role_title", 200)
-    val roleDescription = text("role_description")
-    val requiredSkills = text("required_skills")
-    val isFilled = bool("is_filled").default(false)
-    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
-    override val primaryKey = PrimaryKey(vacancyId)
+    val tagId = integer("tag_id").references(Tags.tagId)
+
+    override val primaryKey = PrimaryKey(projectId, tagId)
 }
 
-object ProjectLikes : Table("project_likes") {
+// Таблица ProjectRoles
+object ProjectRolesTable : Table("project_roles") {
+    val id = integer("role_id").autoIncrement()
     val projectId = integer("project_id").references(Projects.id)
-    val userId = integer("user_id").references(Users.id)
-    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
-    override val primaryKey = PrimaryKey(projectId, userId)
+    val roleName = varchar("role_name", 100)
+    val requiredSkills = text("required_skills").clientDefault { "[]" }
+    val spotsTotal = integer("spots_total")
+    val spotsFilled = integer("spots_filled").default(0)
+
+    override val primaryKey = PrimaryKey(id)
 }
 
-object Comments : Table("comments") {
-    val commentId = integer("comment_id").autoIncrement()
-    val projectId = integer("project_id").references(Projects.id)
+// Таблица Files
+object FilesTable : Table("files") {
+    val id = integer("file_id").autoIncrement()
     val userId = integer("user_id").references(Users.id)
-    val parentCommentId = integer("parent_comment_id").references(commentId).nullable()
-    val content = text("content")
-    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
-    val updatedAt = datetime("updated_at").clientDefault { LocalDateTime.now() }
-    override val primaryKey = PrimaryKey(commentId)
+    val entityType = varchar("entity_type", 20)
+    val entityId = integer("entity_id")
+    val fileName = varchar("file_name", 255)
+    val filePath = text("file_path")
+    val uploadedAt = datetime("uploaded_at").clientDefault { LocalDateTime.now() }
+
+    override val primaryKey = PrimaryKey(id)
 }

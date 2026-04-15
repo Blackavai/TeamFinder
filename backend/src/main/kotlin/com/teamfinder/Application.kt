@@ -30,7 +30,7 @@ fun Application.module() {
     val config = AppConfig.load()
 
     // Инициализация БД
-//    DatabaseFactory.init(config.database)
+    DatabaseFactory.init(config.database)
 
     // Настройка JWT
     val jwtConfig = JwtConfig(config.security)

@@ -16,6 +16,7 @@ import kotlinx.serialization.decodeFromString
 data class RegisterRequest(
     val username: String,
     val email: String,
+    val firstName: String,
     val password: String
 )
 
@@ -61,6 +62,7 @@ fun Route.authRouting(jwtConfig: JwtConfig) {
                 val result = authService.register(
                     username = request.username,
                     email = request.email,
+                    firstName = request.firstName,
                     password = request.password
                 )
                 

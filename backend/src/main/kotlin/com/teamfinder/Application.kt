@@ -38,8 +38,7 @@ fun Application.module() {
     // Плагины Ktor
     configureSerialization()
     configureSecurity(jwtConfig)
-    configureSockets()              // 1. WebSockets ДО маршрутов
-    configureRouting(jwtConfig)      // 2. Маршруты ПОСЛЕ WebSockets
+    configureRouting(jwtConfig)      // Маршруты + WebSockets + Chat
     configureMonitoring()
     configureStatusPages()
     configureCompression()

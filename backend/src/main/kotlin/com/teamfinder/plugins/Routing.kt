@@ -2,31 +2,40 @@ package com.teamfinder.plugins
 
 import com.teamfinder.routes.*
 import com.teamfinder.security.JwtConfig
+import com.teamfinder.services.ChatService
 import io.ktor.server.application.*
-import io.ktor.server.auth.*
+import io.ktor.server.http.content.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.server.http.content.* // 1. КРИТИЧНО: Импорт для статических файлов
 
 fun Application.configureRouting(jwtConfig: JwtConfig) {
+    val chatService = ChatService()
+
     routing {
         // Проверка работоспособности сервера
         get("/health") {
             call.respond(mapOf("status" to "ok"))
         }
 
-        // 2. РАЗДАЧА ФАЙЛОВ: Делаем папку "uploads" доступной по ссылке /static/
-        // Теперь если файл лежит в uploads/abc.jpg, он будет доступен как http://localhost:8080/static/abc.jpg
+        // Раздача статических файлов из папки uploads
         static("/static") {
             files("uploads")
         }
-        
-        // 3. ПУБЛИЧНЫЕ И СМЕШАННЫЕ МАРШРУТЫ
+
+        // ========== PUBLIC & MIXED ROUTES ==========
         authRouting(jwtConfig)
         projectRouting(jwtConfig)
         userRouting()
+        uploadRouting(jwtConfig)
 
-        // 4. МАРШРУТЫ ЗАГРУЗКИ: Активируем тот код, который ты заменил в UploadRoutes.kt
-        uploadRouting()
+        // ========== RESPONSES & INVITATIONS ==========
+        responseRouting(jwtConfig)
+        invitationRouting(jwtConfig)
+
+        // ========== CHAT ==========
+        chatRouting(jwtConfig, chatService)
     }
+
+    // WebSockets нужно настраивать отдельно (внутри install(WebSockets))
+    configureSockets(chatService)
 }

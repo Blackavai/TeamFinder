@@ -1,8 +1,6 @@
 package com.teamfinder.routes
 
-import com.teamfinder.models.MessageResponse
-import com.teamfinder.models.ErrorResponse
-import com.teamfinder.models.Project
+import com.teamfinder.models.* // Важно: импортируем всё из моделей, включая Comment
 import com.teamfinder.repositories.ProjectRepository
 import com.teamfinder.security.JwtConfig
 import io.ktor.http.*
@@ -15,47 +13,23 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
+// --- ОБНОВЛЕННЫЕ ОТВЕТЫ (DTO) ПОД НОВУЮ БД ---
+
 @Serializable
 data class ProjectResponse(
     val id: Int,
     val authorId: Int,
     val title: String,
-    val description: String,
-    val briefDescription: String,
-    val stage: String,
+    val description: String?,
     val status: String,
+    val industry: String?,
     val createdAt: String?,
-    val updatedAt: String?,
-    val viewsCount: Int,
-    val likesCount: Int,
-    val tags: List<String>,
-    val neededRoles: List<RoleResponse>,
-    val authorName: String?
+    val authorName: String?,
+    val roles: List<Role> = emptyList()
 )
 
 @Serializable
-data class RoleResponse(
-    val id: Int?,
-    val title: String,
-    val description: String,
-    val requiredSkills: List<String>,
-    val isFilled: Boolean
-)
-
-@Serializable
-data class CommentResponse(
-    val id: Int?,
-    val projectId: Int,
-    val userId: Int,
-    val userName: String?,
-    val content: String,
-    val createdAt: String?
-)
-
-@Serializable
-data class LikeResponse(
-    val liked: Boolean
-)
+data class LikeResponse(val liked: Boolean)
 
 fun Route.projectRouting(jwtConfig: JwtConfig) {
     val projectRepository = ProjectRepository()
@@ -74,7 +48,10 @@ fun Route.projectRouting(jwtConfig: JwtConfig) {
                 val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
                 val projects = projectRepository.getFeed(page, limit)
-                call.respond(HttpStatusCode.OK, projects)
+                
+                // Мапим в ProjectResponse
+                val response = projects.map { it.toResponse() }
+                call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {
                 call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Server error occurred"))
             }
@@ -83,17 +60,17 @@ fun Route.projectRouting(jwtConfig: JwtConfig) {
         get("/{id}") {
             try {
                 val id = call.parameters["id"]?.toIntOrNull() 
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid project ID"))
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid ID"))
 
                 val project = projectRepository.findById(id)
                 if (project != null) {
                     projectRepository.incrementViews(id)
-                    call.respond(HttpStatusCode.OK, project)
+                    call.respond(HttpStatusCode.OK, project.toResponse())
                 } else {
                     call.respond(HttpStatusCode.NotFound, ErrorResponse("Project not found"))
                 }
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Server error occurred"))
+                call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Server error"))
             }
         }
 
@@ -102,12 +79,10 @@ fun Route.projectRouting(jwtConfig: JwtConfig) {
 
             post("/") {
                 try {
-                    val principal = call.principal<JWTPrincipal>()
-                    val userId = principal?.payload?.subject?.toIntOrNull() 
-                        ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Authentication required"))
+                    val userId = call.principal<JWTPrincipal>()?.payload?.subject?.toIntOrNull() 
+                        ?: return@post call.respond(HttpStatusCode.Unauthorized)
 
-                    val text = call.receive<String>()
-                    val project = Json.decodeFromString<Project>(text)
+                    val project = call.receive<Project>()
                     val created = projectRepository.create(project.copy(authorId = userId))
 
                     if (created != null) {
@@ -116,117 +91,89 @@ fun Route.projectRouting(jwtConfig: JwtConfig) {
                         call.respond(HttpStatusCode.BadRequest, ErrorResponse("Failed to create project"))
                     }
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid data format"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid format"))
                 }
             }
 
-            // UPDATED PUT (WITH OWNERSHIP CHECK)
             put("/{id}") {
                 try {
-                    val id = call.parameters["id"]?.toIntOrNull() 
-                        ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid project ID"))
-                    
-                    val principal = call.principal<JWTPrincipal>()
-                    val currentUserId = principal?.payload?.subject?.toIntOrNull() 
-                        ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Authentication required"))
+                    val id = call.parameters["id"]?.toIntOrNull() ?: return@put call.respond(HttpStatusCode.BadRequest)
+                    val userId = call.principal<JWTPrincipal>()?.payload?.subject?.toIntOrNull() ?: return@put call.respond(HttpStatusCode.Unauthorized)
 
-                    // 1. Fetch project from DB to verify authorship
-                    val existingProject = projectRepository.findById(id) 
-                        ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Project not found"))
-
-                    // 2. SECURITY CHECK: Compare authorId with current user ID
-                    if (existingProject.authorId != currentUserId) {
-                        call.respond(HttpStatusCode.Forbidden, ErrorResponse("Access denied: You are not the author of this project"))
-                        return@put
+                    val existing = projectRepository.findById(id) ?: return@put call.respond(HttpStatusCode.NotFound)
+                    if (existing.authorId != userId) {
+                        return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Not your project"))
                     }
 
-                    // 3. Update the data
-                    val text = call.receive<String>()
-                    val projectData = Json.decodeFromString<Project>(text)
-                    val updated = projectRepository.update(id, projectData)
-
-                    if (updated) {
-                        call.respond(HttpStatusCode.OK, MessageResponse("Project updated successfully"))
+                    val update = call.receive<Project>()
+                    if (projectRepository.update(id, update)) {
+                        call.respond(HttpStatusCode.OK, MessageResponse("Updated successfully"))
                     } else {
-                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Failed to update project"))
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Update failed"))
                     }
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid data format"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid format"))
                 }
             }
 
-            // UPDATED DELETE (WITH OWNERSHIP CHECK)
             delete("/{id}") {
-                try {
-                    val id = call.parameters["id"]?.toIntOrNull() 
-                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid project ID"))
-                    
-                    val principal = call.principal<JWTPrincipal>()
-                    val currentUserId = principal?.payload?.subject?.toIntOrNull() 
-                        ?: return@delete call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Authentication required"))
+                val id = call.parameters["id"]?.toIntOrNull() ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                val userId = call.principal<JWTPrincipal>()?.payload?.subject?.toIntOrNull() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
 
-                    // 1. Fetch project from DB
-                    val project = projectRepository.findById(id) 
-                        ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Project not found"))
+                val project = projectRepository.findById(id) ?: return@delete call.respond(HttpStatusCode.NotFound)
+                if (project.authorId != userId) {
+                    return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Access denied"))
+                }
 
-                    // 2. SECURITY CHECK
-                    if (project.authorId != currentUserId) {
-                        call.respond(HttpStatusCode.Forbidden, ErrorResponse("Access denied: You cannot delete someone else's project"))
-                        return@delete
-                    }
-
-                    // 3. Delete from DB
-                    val deleted = projectRepository.delete(id)
-                    if (deleted) {
-                        call.respond(HttpStatusCode.OK, MessageResponse("Project deleted successfully"))
-                    } else {
-                        call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Failed to delete project"))
-                    }
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Server error occurred"))
+                if (projectRepository.delete(id)) {
+                    call.respond(HttpStatusCode.OK, MessageResponse("Deleted successfully"))
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Delete failed"))
                 }
             }
 
             post("/{id}/like") {
-                try {
-                    val id = call.parameters["id"]?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.BadRequest)
-                    val userId = call.principal<JWTPrincipal>()?.payload?.subject?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                    
-                    val liked = projectRepository.toggleLike(id, userId)
-                    call.respond(HttpStatusCode.OK, LikeResponse(liked))
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Action failed"))
-                }
+                val id = call.parameters["id"]?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.BadRequest)
+                val userId = call.principal<JWTPrincipal>()?.payload?.subject?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                val liked = projectRepository.toggleLike(id, userId)
+                call.respond(HttpStatusCode.OK, LikeResponse(liked))
             }
 
             post("/{id}/comments") {
                 try {
                     val projectId = call.parameters["id"]?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.BadRequest)
                     val userId = call.principal<JWTPrincipal>()?.payload?.subject?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                    val req = call.receive<Map<String, String>>()
+                    val content = req["content"] ?: return@post call.respond(HttpStatusCode.BadRequest)
 
-                    val text = call.receive<String>()
-                    val request = Json.decodeFromString<Map<String, String>>(text)
-                    val content = request["content"] ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Comment content is required"))
-
+                    // Используем Comment из Models.kt
                     val comment = projectRepository.addComment(
-                        com.teamfinder.repositories.Comment(projectId = projectId, userId = userId, content = content)
+                        Comment(projectId = projectId, userId = userId, content = content)
                     )
-                    
-                    if (comment != null) {
-                        call.respond(HttpStatusCode.Created, comment)
-                    } else {
-                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Failed to add comment"))
-                    }
+                    call.respond(HttpStatusCode.Created, comment!!)
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid data format"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Format error"))
                 }
             }
 
             get("/{id}/comments") {
-                val projectId = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
-                val comments = projectRepository.getComments(projectId)
+                val id = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val comments = projectRepository.getComments(id)
                 call.respond(HttpStatusCode.OK, comments)
             }
         }
     }
 }
+
+// Помощник для маппинга
+fun Project.toResponse() = ProjectResponse(
+    id = this.id!!,
+    authorId = this.authorId,
+    title = this.title,
+    description = this.description,
+    status = this.status,
+    industry = this.industry,
+    createdAt = this.createdAt,
+    authorName = this.authorName,
+    roles = this.roles
+)

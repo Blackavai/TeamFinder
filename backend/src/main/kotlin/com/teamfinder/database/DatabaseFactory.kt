@@ -9,7 +9,6 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 object DatabaseFactory {
@@ -20,25 +19,24 @@ object DatabaseFactory {
         
         Database.connect(hikari(config))
         
-        // СОЗДАЕМ ТАБЛИЦЫ ЗДЕСЬ
         transaction {
-            logger.info("Creating database tables if they don't exist...")
+            logger.info("Verifying 10-table architecture...")
             
+            // СООТВЕТСТВИЕ ТВОЕМУ SQL (10 ТАБЛИЦ)
             SchemaUtils.createMissingTablesAndColumns(
-                Users,           // из models/User.kt
-                Profiles,        // из models/User.kt
-                Projects,        // из models/Project.kt
-                ProjectTags,     // из models/Project.kt
-                Tags,            // из models/Project.kt
-                Vacancies,       // из models/Project.kt
-                ProjectLikes,    // из models/Project.kt
-                Comments,        // из models/Project.kt
-                Chats,           // из models/Chat.kt
-                ChatParticipants,// из models/Chat.kt
-                Messages         // из models/Chat.kt
+                Users,           // 1. Пользователи
+                UserAuth,        // 2. Авторизация (соцсети)
+                Tags,            // 3. Справочник тегов
+                Projects,        // 4. Проекты
+                ProjectTags,     // 5. Связи проектов и тегов
+                ProjectRoles,    // 6. Роли (вместо Vacancies)
+                Files,           // 7. Файлы
+                Responses,       // 8. Отклики
+                Invitations,     // 9. Приглашения
+                Messages         // 10. Сообщения (чаты)
             )
             
-            logger.info("Database tables created/verified successfully")
+            logger.info("Database synchronized with new schema successfully")
         }
     }
 

@@ -1,13 +1,12 @@
 package com.teamfinder.services
 
-import com.teamfinder.models.User
-import com.teamfinder.models.UserRole
+import com.teamfinder.models.* // Импортируем User, UserRole и т.д.
 import com.teamfinder.repositories.UserRepository
 import com.teamfinder.security.JwtConfig
 import java.time.LocalDateTime
 
 /**
- * Сервис для работы с аутентификацией пользователей
+ * Service for handling user authentication and registration
  */
 class AuthService(
     private val jwtConfig: JwtConfig,
@@ -15,39 +14,32 @@ class AuthService(
 ) {
     
     /**
-     * Регистрация нового пользователя
-     * 
-     * @param username - имя пользователя
-     * @param email - электронная почта
-     * @param password - пароль
-     * @return результат регистрации (успех или ошибка)
+     * Register a new user
      */
     suspend fun register(username: String, email: String, password: String): AuthResult {
-        // Проверяем, не занята ли электронная почта
-        val existingUser = userRepository.findByEmail(email)
-        if (existingUser != null) {
-            return AuthResult.Error("Пользователь с таким email уже существует")
+        // 1. Check if email exists
+        if (userRepository.findByEmail(email) != null) {
+            return AuthResult.Error("User with this email already exists")
         }
         
-        // Проверяем, не занято ли имя пользователя
-        val existingUsername = userRepository.findByUsername(username)
-        if (existingUsername != null) {
-            return AuthResult.Error("Имя пользователя уже занято")
+        // 2. Check if username exists
+        if (userRepository.findByUsername(username) != null) {
+            return AuthResult.Error("Username is already taken")
         }
         
-        // Проверяем сложность пароля
+        // 3. Validate password complexity
         if (!isPasswordValid(password)) {
-            return AuthResult.Error("Пароль должен содержать минимум 8 символов, включая буквы и цифры")
+            return AuthResult.Error("Password must be at least 8 characters long and contain both letters and numbers")
         }
         
-        // Создаём нового пользователя
+        // 4. Create NEW user object (Sychronized with 10-table schema)
         val user = User(
             username = username,
             email = email,
+            firstName = username, // Use username as default first name
             role = UserRole.USER,
             isActive = true,
-            createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
+            createdAt = LocalDateTime.now().toString() // Convert to String for API consistency
         )
         
         val created = userRepository.create(user, password)
@@ -59,16 +51,12 @@ class AuthService(
                 user = created
             )
         } else {
-            AuthResult.Error("Не удалось создать пользователя")
+            AuthResult.Error("Failed to create user account")
         }
     }
     
     /**
-     * Вход пользователя в систему
-     * 
-     * @param email - электронная почта
-     * @param password - пароль
-     * @return результат входа (успех или ошибка)
+     * User login
      */
     suspend fun login(email: String, password: String): AuthResult {
         val user = userRepository.validateCredentials(email, password)
@@ -81,22 +69,19 @@ class AuthService(
                 user = user
             )
         } else {
-            AuthResult.Error("Неверный email или пароль")
+            AuthResult.Error("Invalid email or password")
         }
     }
     
     /**
-     * Обновление токена доступа
-     * 
-     * @param refreshToken - токен обновления
-     * @return новые токены или ошибку
+     * Refresh access token
      */
     suspend fun refreshToken(refreshToken: String): AuthResult {
         val userId = jwtConfig.extractUserId(refreshToken)
-            ?: return AuthResult.Error("Недействительный токен обновления")
+            ?: return AuthResult.Error("Invalid refresh token")
         
         val user = userRepository.findById(userId)
-            ?: return AuthResult.Error("Пользователь не найден")
+            ?: return AuthResult.Error("User not found")
         
         return AuthResult.Success(
             accessToken = jwtConfig.generateAccessToken(user),
@@ -106,10 +91,7 @@ class AuthService(
     }
     
     /**
-     * Проверка сложности пароля
-     * 
-     * @param password - пароль для проверки
-     * @return true если пароль соответствует требованиям
+     * Password validation logic
      */
     private fun isPasswordValid(password: String): Boolean {
         return password.length >= 8 && 
@@ -119,20 +101,14 @@ class AuthService(
 }
 
 /**
- * Результат операции аутентификации
+ * Result of authentication operations
  */
 sealed class AuthResult {
-    /**
-     * Успешная аутентификация с токенами и данными пользователя
-     */
     data class Success(
-        val accessToken: String,   // Токен доступа
-        val refreshToken: String,  // Токен обновления
-        val user: User             // Данные пользователя
+        val accessToken: String,
+        val refreshToken: String,
+        val user: User
     ) : AuthResult()
     
-    /**
-     * Ошибка аутентификации с сообщением
-     */
     data class Error(val message: String) : AuthResult()
 }

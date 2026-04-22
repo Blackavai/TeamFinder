@@ -1,89 +1,103 @@
 package com.teamfinder.models
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Contextual
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Table
-import java.time.LocalDateTime
 import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.sql.json.jsonb
 
-@Serializable
-data class User(
-    val id: Int? = null,
-    val username: String,
-    val email: String,
-    val passwordHash: String? = null,
-    val fullName: String? = null,
-    val groupName: String? = null,
-    val avatarUrl: String? = null,
-    val about: String? = null,
-    val role: UserRole = UserRole.USER,
-    val isActive: Boolean = true,
-    @Contextual
-    val createdAt: LocalDateTime? = null,
-    @Contextual
-    val updatedAt: LocalDateTime? = null,
-    @Contextual
-    val lastLogin: LocalDateTime? = null
-)
-
-@Serializable
-enum class UserRole {
-    USER, ADMIN, MODERATOR
-}
-
-@Serializable
-data class UserProfile(
-    val userId: Int,
-    val skills: List<Skill> = emptyList(),
-    val interests: List<String> = emptyList(),
-    val goals: String? = null,
-    val portfolioLink: String? = null,
-    val experienceYears: Double? = null,
-    val preferredRoles: List<String> = emptyList()
-)
-
-@Serializable
-data class Skill(
-    val name: String,
-    val level: SkillLevel,
-    val category: String? = null
-)
-
-@Serializable
-enum class SkillLevel {
-    BEGINNER, INTERMEDIATE, ADVANCED, EXPERT
-}
-
-// Таблицы базы данных - ЭТОТ КОД ОСТАВЛЯЕМ КАК ЕСТЬ
-
+// ============================================
+// EXPOSED TABLES (Схема БД)
+// ============================================
 
 object Users : Table("users") {
-    val id = integer("user_id").autoIncrement()
-    val username = varchar("username", 100).uniqueIndex()
-    val email = varchar("email", 255).uniqueIndex()
-    val passwordHash = varchar("password_hash", 255)
-    val fullName = varchar("full_name", 200).nullable()
-    val groupName = varchar("group_name", 50).nullable()
-    val avatarUrl = text("avatar_url").nullable()
-    val about = text("about").nullable()
-    val role = enumerationByName("role", 20, UserRole::class).default(UserRole.USER)
-    val isActive = bool("is_active").default(true)
-    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
-    val updatedAt = datetime("updated_at").clientDefault { LocalDateTime.now() }
-    val lastLogin = datetime("last_login").nullable()
+    val userId = integer("user_id").autoIncrement()
+    val email = varchar("email", 255).nullable().uniqueIndex()
+    val passwordHash = varchar("password_hash", 255).nullable()
     
-    override val primaryKey = PrimaryKey(id)
+    val username = varchar("username", 50).uniqueIndex()
+    val firstName = varchar("first_name", 100)
+    val lastName = varchar("last_name", 100).nullable()
+    val avatarUrl = text("avatar_url").nullable()
+    
+    // Используем jsonb для хранения массивов
+    val skills = jsonb<List<String>>("skills", Json.Default).default(emptyList())
+    val interests = jsonb<List<String>>("interests", Json.Default).default(emptyList())
+    val goals = text("goals").nullable()
+    
+    val rating = decimal("rating", 3, 2).default(java.math.BigDecimal("0.00"))
+    val responseTimeAvg = integer("response_time_avg").nullable()
+    val portfolioUrl = text("portfolio_url").nullable()
+    
+    val createdAt = datetime("created_at")
+    val lastActive = datetime("last_active").nullable()
+
+    override val primaryKey = PrimaryKey(userId)
 }
 
-object Profiles : Table("profiles") {
-    val profileId = integer("profile_id").autoIncrement()
-    val userId = integer("user_id").uniqueIndex().references(Users.id)
-    val skills = text("skills").clientDefault { "[]" }
-    val interests = text("interests").clientDefault { "[]" }
-    val goals = text("goals").nullable()
-    val portfolioLink = text("portfolio_link").nullable()
-    val experienceYears = decimal("experience_years", 3, 1).nullable()
-    val preferredRoles = text("preferred_roles").clientDefault { "[]" }
+object UserAuths : Table("user_auth") {
+    val authId = integer("auth_id").autoIncrement()
+    val userId = reference("user_id", Users.userId)
+    val provider = varchar("provider", 20) // 'telegram', etc.
+    val providerId = varchar("provider_id", 255)
+
+    override val primaryKey = PrimaryKey(authId)
     
-    override val primaryKey = PrimaryKey(profileId)
+    init {
+        uniqueIndex(provider, providerId)
+    }
 }
+
+// ============================================
+// DATA CLASSES (Модели для отдачи клиенту / получения запросов)
+// ============================================
+
+@Serializable
+data class UserDTO(
+    val userId: Int,
+    val email: String?,
+    val username: String,
+    val firstName: String,
+    val lastName: String?,
+    val avatarUrl: String?,
+    val skills: List<String>,
+    val interests: List<String>,
+    val goals: String?,
+    val rating: Double,
+    val portfolioUrl: String?
+)
+
+@Serializable
+data class RegisterUserRequest(
+    val email: String,
+    val password: String,
+    val username: String,
+    val firstName: String,
+    val lastName: String? = null
+)
+
+@Serializable
+data class UpdateProfileRequest(
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val avatarUrl: String? = null,
+    val skills: List<String>? = null,
+    val interests: List<String>? = null,
+    val goals: String? = null,
+    val portfolioUrl: String? = null
+)
+
+@Serializable
+data class LoginRequest(val email: String, val password: String)
+
+@Serializable
+data class TelegramAuthRequest(
+    val id: String,          // ID пользователя в Telegram
+    val first_name: String,
+    val last_name: String? = null,
+    val username: String? = null,
+    val photo_url: String? = null,
+    val auth_date: Long,
+    val hash: String         // Хэш для проверки подлинности
+)

@@ -1,0 +1,349 @@
+openapi: 3.0.3
+info:
+  title: TeamFinder API
+  version: 1.0.0
+  description: API бэкенда для мобильного приложения поиска команд. Поддерживает JWT авторизацию, работу с проектами, откликами, чатами и загрузкой файлов.
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- AUTH & USER ---
+    RegisterRequest:
+      type: object
+      required: [email, password, username, firstName]
+      properties:
+        email: { type: string, format: email, example: "user@example.com" }
+        password: { type: string, format: password, example: "securePass123" }
+        username: { type: string, example: "kotlin_dev" }
+        firstName: { type: string, example: "Иван" }
+        lastName: { type: string, example: "Иванов" }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, example: "user@example.com" }
+        password: { type: string, example: "securePass123" }
+
+    TelegramAuthRequest:
+      type: object
+      required: [id, first_name, auth_date, hash]
+      properties:
+        id: { type: string, example: "12345678" }
+        first_name: { type: string, example: "Ivan" }
+        last_name: { type: string }
+        username: { type: string }
+        photo_url: { type: string }
+        auth_date: { type: int64, example: 1715600000 }
+        hash: { type: string, example: "d6f...hash" }
+
+    UserDTO:
+      type: object
+      properties:
+        userId: { type: integer }
+        email: { type: string }
+        username: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        avatarUrl: { type: string }
+        skills: { type: array, items: { type: string } }
+        interests: { type: array, items: { type: string } }
+        goals: { type: string }
+        rating: { type: number, format: double }
+        portfolioUrl: { type: string }
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        skills: { type: array, items: { type: string } }
+        interests: { type: array, items: { type: string } }
+        goals: { type: string }
+        portfolioUrl: { type: string }
+
+    # --- PROJECTS ---
+    CreateRoleRequest:
+      type: object
+      required: [roleName, spotsTotal]
+      properties:
+        roleName: { type: string, example: "Backend Developer" }
+        requiredSkills: { type: array, items: { type: string }, example: ["Kotlin", "Ktor"] }
+        spotsTotal: { type: integer, example: 2 }
+
+    CreateProjectRequest:
+      type: object
+      required: [title, tags, roles]
+      properties:
+        title: { type: string, example: "Социальная сеть для питомцев" }
+        description: { type: string, example: "Проект на стадии идеи..." }
+        deadline: { type: string, format: date, example: "2024-12-31" }
+        industry: { type: string, example: "Social" }
+        tags: { type: array, items: { type: string }, example: ["Mobile", "KMP"] }
+        roles: { type: array, items: { $ref: '#/components/schemas/CreateRoleRequest' } }
+
+    ProjectDTO:
+      type: object
+      properties:
+        projectId: { type: integer }
+        authorId: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        status: { type: string }
+        deadline: { type: string }
+        industry: { type: string }
+        isActive: { type: boolean }
+        tags: { type: array, items: { type: string } }
+        roles: 
+          type: array
+          items:
+            type: object
+            properties:
+              roleId: { type: integer }
+              roleName: { type: string }
+              requiredSkills: { type: array, items: { type: string } }
+              spotsTotal: { type: integer }
+              spotsFilled: { type: integer }
+
+    # --- RESPONSES ---
+    CreateResponseRequest:
+      type: object
+      required: [projectId]
+      properties:
+        projectId: { type: integer }
+        roleId: { type: integer, nullable: true }
+        message: { type: string, example: "Хочу в команду!" }
+
+    UpdateResponseStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: ["принят", "отклонён"] }
+
+    ResponseDTO:
+      type: object
+      properties:
+        responseId: { type: integer }
+        projectId: { type: integer }
+        projectTitle: { type: string }
+        userUsername: { type: string }
+        roleName: { type: string }
+        status: { type: string }
+        message: { type: string }
+
+paths:
+  # --- AUTH ---
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация по почте
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        201: { description: Пользователь создан, возвращается токен }
+        409: { description: Email или Username занят }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход по почте
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        200: { description: Успешный вход }
+        401: { description: Неверные данные }
+
+  /auth/telegram:
+    post:
+      tags: [Auth]
+      summary: Авторизация через Telegram Widget
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TelegramAuthRequest' }
+      responses:
+        200: { description: Успешный вход/регистрация }
+
+  # --- USERS ---
+  /users/me:
+    get:
+      tags: [User]
+      summary: Получить информацию о своем профиле
+      security: [{ BearerAuth: [] }]
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserDTO' }
+    put:
+      tags: [User]
+      summary: Обновить данные своего профиля
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        200: { description: Профиль обновлен }
+
+  # --- PROJECTS ---
+  /projects:
+    get:
+      tags: [Projects]
+      summary: Лента проектов с фильтрацией
+      parameters:
+        - name: tags
+          in: query
+          description: Теги через запятую (kotlin,android)
+          schema: { type: string }
+        - name: industry
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ProjectDTO' } }
+    post:
+      tags: [Projects]
+      summary: Создать новый проект
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectRequest' }
+      responses:
+        201: { description: Проект создан }
+
+  /projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Детальная информация о проекте
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectDTO' }
+
+  # --- RESPONSES ---
+  /responses:
+    post:
+      tags: [Responses]
+      summary: Откликнуться на роль в проекте
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateResponseRequest' }
+      responses:
+        201: { description: Отклик отправлен }
+        409: { description: Вы уже откликнулись }
+
+  /responses/my:
+    get:
+      tags: [Responses]
+      summary: Список моих откликов (статусы заявок)
+      security: [{ BearerAuth: [] }]
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ResponseDTO' } }
+
+  /projects/{projectId}/responses:
+    get:
+      tags: [Responses]
+      summary: Список всех откликов на мой проект (для автора)
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ResponseDTO' } }
+
+  /responses/{responseId}/status:
+    put:
+      tags: [Responses]
+      summary: Принять или отклонить отклик
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: responseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateResponseStatusRequest' }
+      responses:
+        200: { description: Статус успешно изменен }
+
+  # --- CHAT ---
+  /chat/{chatType}/{chatId}/history:
+    get:
+      tags: [Chat]
+      summary: Получить историю сообщений чата
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: chatType
+          in: path
+          required: true
+          schema: { type: string, enum: ["team", "response"] }
+        - name: chatId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200: { description: Список сообщений }
+
+  /chat:
+    get:
+      tags: [Chat]
+      summary: "WebSocket: Подключение к чату"
+      description: "Требует 'Upgrade: websocket' заголовок и JWT токен."
+      security: [{ BearerAuth: [] }]
+      responses:
+        101: { description: Переключение на протокол WebSocket }
+
+  # --- UPLOADS ---
+  /upload:
+    post:
+      tags: [Uploads]
+      summary: Загрузка файлов и аватарок
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                entityType: { type: string, enum: ["avatar", "project"] }
+                entityId: { type: integer, description: "ID проекта (не нужен для аватара)" }
+      responses:
+        200: { description: Файл успешно загружен }

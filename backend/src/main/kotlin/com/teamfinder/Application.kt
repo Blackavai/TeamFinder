@@ -45,5 +45,7 @@ fun Application.module() {
     configureCompression()
     configureCORS()
 
+    configureSwagger()
+
     logger.info("Application started successfully on port 8080")
 }

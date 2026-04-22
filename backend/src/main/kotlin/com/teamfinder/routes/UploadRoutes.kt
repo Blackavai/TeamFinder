@@ -1,66 +1,89 @@
 package com.teamfinder.routes
 
+import com.teamfinder.repositories.FileRepository
+import com.teamfinder.repositories.UserRepository
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.io.File
 import java.util.*
 
-fun Route.uploadRouting() {
-    // 1. SECURITY: Only authenticated users can upload files
+fun Route.uploadRoutes(userRepository: UserRepository, fileRepository: FileRepository) {
+
     authenticate("auth-jwt") {
-        route("/uploads") {
-            post {
-                try {
-                    val multipart = call.receiveMultipart()
-                    var fileName: String? = null
+        post("/upload") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("userId")?.asInt()
+                ?: return@post call.respond(HttpStatusCode.Unauthorized)
 
-                    multipart.forEachPart { part ->
-                        if (part is PartData.FileItem) {
-                            // 2. FILE EXTENSION VALIDATION
-                            val originalName = part.originalFileName ?: "file"
-                            val extension = originalName.substringAfterLast('.', "bin").lowercase()
-                            
-                            // Добавь doc, docx и pdf в список разрешенных
-val allowedExtensions = listOf("jpg", "jpeg", "png", "gif", "doc", "docx", "pdf", "txt")
-                            
-                            if (extension !in allowedExtensions) {
-                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Unsupported file format: .$extension"))
-                                return@forEachPart
+            var entityType = ""
+            var entityId: Int? = null
+            var response: Any? = null
+
+            // 1. Получаем multipart-данные
+            val multipartData = call.receiveMultipart()
+            multipartData.forEachPart { part ->
+                when (part) {
+                    is PartData.FormItem -> {
+                        // Читаем текстовые поля
+                        when (part.name) {
+                            "entityType" -> entityType = part.value
+                            "entityId" -> entityId = part.value.toIntOrNull()
+                        }
+                    }
+                    is PartData.FileItem -> {
+                        val originalFileName = part.originalFileName ?: "unknown"
+                        val fileExtension = File(originalFileName).extension
+                        // ВАЖНО: Генерируем уникальное имя, чтобы избежать конфликтов и атак
+                        val uniqueFileName = "${UUID.randomUUID()}.$fileExtension"
+                        
+                        val uploadDir = File("uploads")
+                        uploadDir.mkdirs() // Создаем папку, если ее нет
+                        val serverFile = File(uploadDir, uniqueFileName)
+
+                        // 2. Сохраняем файл на диск
+                        part.streamProvider().use { input ->
+                            serverFile.outputStream().buffered().use { output ->
+                                input.copyTo(output)
                             }
+                        }
 
-                            // 3. SECURE FILENAME: Prevents overwriting and directory traversal attacks
-                            fileName = "${UUID.randomUUID()}.$extension"
-                            
-                            val folder = File("uploads")
-                            if (!folder.exists()) folder.mkdirs()
-                            
-                            // 4. PERFORMANCE: Streaming the file to disk (Efficient Memory Usage)
-                            val file = File(folder, fileName!!)
-                            part.streamProvider().use { input ->
-                                file.outputStream().buffered().use { output ->
-                                    input.copyTo(output)
+                        val publicUrl = "/static/$uniqueFileName"
+
+                        // 3. Обрабатываем в зависимости от типа сущности
+                        when (entityType) {
+                            "avatar" -> {
+                                userRepository.updateAvatarUrl(userId, publicUrl)
+                                response = mapOf("avatarUrl" to publicUrl)
+                            }
+                            "project" -> {
+                                if (entityId != null) {
+                                    val fileDto = fileRepository.createFileRecord(
+                                        uploaderId = userId,
+                                        entityType = "project",
+                                        entityId = entityId!!,
+                                        originalName = originalFileName,
+                                        serverPath = publicUrl
+                                    )
+                                    response = fileDto
                                 }
                             }
                         }
-                        part.dispose()
                     }
-
-                    if (fileName != null) {
-                        call.respond(HttpStatusCode.Created, mapOf(
-                            "message" to "File uploaded successfully",
-                            "url" to "/static/$fileName"
-                        ))
-                    } else {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No file found in request"))
-                    }
-                } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to upload file"))
+                    else -> {}
                 }
+                part.dispose() // Очищаем временные данные
+            }
+
+            if (response != null) {
+                call.respond(HttpStatusCode.OK, response!!)
+            } else {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Некорректные данные для загрузки"))
             }
         }
     }

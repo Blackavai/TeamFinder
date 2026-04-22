@@ -62,6 +62,9 @@ dependencies {
     implementation("org.mindrot:jbcrypt:0.4")
     implementation("com.auth0:java-jwt:4.4.0")
     
+    implementation("io.ktor:ktor-server-swagger:2.3.12")
+    implementation("io.ktor:ktor-server-openapi:2.3.12")
+
     // Testing
     testImplementation("io.ktor:ktor-server-tests:2.3.12")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.24")

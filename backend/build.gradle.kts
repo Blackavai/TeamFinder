@@ -47,6 +47,7 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-core:0.52.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.52.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.52.0")
+    implementation("org.jetbrains.exposed:exposed-json:0.52.0")
     implementation("org.postgresql:postgresql:42.7.4")
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")

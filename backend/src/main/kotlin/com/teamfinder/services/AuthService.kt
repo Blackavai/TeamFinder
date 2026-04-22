@@ -4,6 +4,7 @@ import com.teamfinder.models.*
 import com.teamfinder.repositories.UserRepository
 import com.teamfinder.security.JwtConfig // Твой класс генерации JWT
 import com.teamfinder.utils.PasswordUtils // Твой утилитный класс
+import com.teamfinder.utils.TelegramAuthValidator
 
 class AuthService(
     private val userRepository: UserRepository,

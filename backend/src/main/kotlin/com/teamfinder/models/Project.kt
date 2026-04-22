@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.json.jsonb
 
+
 // ============================================
 // EXPOSED TABLES (Схема БД)
 // ============================================

@@ -9,6 +9,9 @@ import io.ktor.server.http.content.* // Для статики
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.io.File
+import com.teamfinder.repositories.*
+import com.teamfinder.services.*
+import com.teamfinder.models.*
 
 fun Application.configureRouting(jwtConfig: JwtConfig) {
     
@@ -34,8 +37,8 @@ fun Application.configureRouting(jwtConfig: JwtConfig) {
         // 3. ПОДКЛЮЧЕНИЕ РОУТОВ
         authRoutes(authService)       // Вызываем функцию из AuthRoutes.kt
         userRoutes(userRepository)    // Вызываем функцию из UserRoutes.kt
-        
-        projectRouting(projectRepository)  // Раскомментируешь, когда напишем
+
+        projectRoutes(projectRepository)  // Раскомментируешь, когда напишем
         responseRoutes(responseRepository)
         chatRoutes(chatService, messageRepository)
         uploadRoutes(userRepository, fileRepository)

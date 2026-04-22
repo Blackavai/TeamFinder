@@ -2,10 +2,11 @@ package com.teamfinder.models
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.json.jsonb
+import kotlinx.serialization.json.Json
+
 
 // ============================================
 // EXPOSED TABLES (Схема БД)

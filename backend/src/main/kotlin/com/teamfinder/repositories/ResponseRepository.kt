@@ -48,31 +48,24 @@ class ResponseRepository {
     
     // 3. Получить отклик по ID (внутренний метод для сборки DTO)
     private fun getResponseByIdInternal(id: Int): ResponseDTO? {
-        return (Responses
-                innerJoin Projects on Responses.projectId eq Projects.projectId
-                innerJoin Users on Responses.userId eq Users.userId
-                leftJoin ProjectRoles on Responses.roleId eq ProjectRoles.roleId)
+        // Убираем слово 'on', Exposed использует лямбду для кастомных связей или делает их сам
+        return (Responses innerJoin Projects innerJoin Users)
+            .leftJoin(ProjectRoles)
             .select { Responses.responseId eq id }
             .singleOrNull()
             ?.toResponseDTO()
     }
-    
-    // 4. Получить все отклики на конкретный проект
+
     suspend fun getResponsesForProject(projectId: Int): List<ResponseDTO> = dbQuery {
-        (Responses
-                innerJoin Projects on Responses.projectId eq Projects.projectId
-                innerJoin Users on Responses.userId eq Users.userId
-                leftJoin ProjectRoles on Responses.roleId eq ProjectRoles.roleId)
+        (Responses innerJoin Projects innerJoin Users)
+            .leftJoin(ProjectRoles)
             .select { Responses.projectId eq projectId }
             .map { it.toResponseDTO() }
     }
 
-    // 5. Получить все МОИ отклики (чтобы я мог следить за их статусом)
     suspend fun getMyResponses(userId: Int): List<ResponseDTO> = dbQuery {
-        (Responses
-                innerJoin Projects on Responses.projectId eq Projects.projectId
-                innerJoin Users on Responses.userId eq Users.userId
-                leftJoin ProjectRoles on Responses.roleId eq ProjectRoles.roleId)
+        (Responses innerJoin Projects innerJoin Users)
+            .leftJoin(ProjectRoles)
             .select { Responses.userId eq userId }
             .map { it.toResponseDTO() }
     }
